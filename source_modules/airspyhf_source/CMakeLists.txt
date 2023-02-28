@@ -3,19 +3,7 @@ project(airspyhf_source)
 
 file(GLOB SRC "src/*.cpp")
 
-add_library(airspyhf_source SHARED ${SRC})
-target_link_libraries(airspyhf_source PRIVATE sdrpp_core)
-set_target_properties(airspyhf_source PROPERTIES PREFIX "")
-
-target_include_directories(airspyhf_source PRIVATE "src/")
-
-if (MSVC)
-    target_compile_options(airspyhf_source PRIVATE /O2 /Ob2 /std:c++17 /EHsc)
-elseif (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    target_compile_options(airspyhf_source PRIVATE -O3 -std=c++17 -Wno-unused-command-line-argument -undefined dynamic_lookup)
-else ()
-    target_compile_options(airspyhf_source PRIVATE -O3 -std=c++17)
-endif ()
+include(${SDRPP_MODULE_CMAKE})
 
 if (MSVC)
     # Lib path
@@ -26,13 +14,12 @@ if (MSVC)
     target_link_libraries(airspyhf_source PRIVATE airspyhf)
 elseif (ANDROID)
     target_include_directories(airspyhf_source PUBLIC
-        /mnt/android_sdr/libusb/libusb
-        /mnt/android_sdr/airspyhf/libairspyhf/src
+        /sdr-kit/${ANDROID_ABI}/include/libairspyhf
     )
 
     target_link_libraries(airspyhf_source PUBLIC
-        /mnt/android_sdr/output/libusb/${ANDROID_ABI}/libusb1.0.so
-        /mnt/android_sdr/output/libairspyhf/${ANDROID_ABI}/libairspyhf.so
+        /sdr-kit/${ANDROID_ABI}/lib/libusb1.0.so
+        /sdr-kit/${ANDROID_ABI}/lib/libairspyhf.so
     )
 else (MSVC)
     find_package(PkgConfig)
@@ -49,6 +36,3 @@ else (MSVC)
     endif()
     
 endif ()
-
-# Install directives
-install(TARGETS airspyhf_source DESTINATION lib/sdrpp/plugins)

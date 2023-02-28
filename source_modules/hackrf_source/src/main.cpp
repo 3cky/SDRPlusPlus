@@ -1,4 +1,4 @@
-#include <spdlog/spdlog.h>
+#include <utils/flog.h>
 #include <module.h>
 #include <gui/gui.h>
 #include <signal_path/signal_path.h>
@@ -12,7 +12,6 @@
 #include <libhackrf/hackrf.h>
 #else
 #include <android_backend.h>
-#include <spdlog/sinks/android_sink.h>
 #include <hackrf.h>
 #endif
 
@@ -224,12 +223,12 @@ private:
     static void menuSelected(void* ctx) {
         HackRFSourceModule* _this = (HackRFSourceModule*)ctx;
         core::setInputSampleRate(_this->sampleRate);
-        spdlog::info("HackRFSourceModule '{0}': Menu Select!", _this->name);
+        flog::info("HackRFSourceModule '{0}': Menu Select!", _this->name);
     }
 
     static void menuDeselected(void* ctx) {
         HackRFSourceModule* _this = (HackRFSourceModule*)ctx;
-        spdlog::info("HackRFSourceModule '{0}': Menu Deselect!", _this->name);
+        flog::info("HackRFSourceModule '{0}': Menu Deselect!", _this->name);
     }
 
     int bandwidthIdToBw(int id) {
@@ -241,17 +240,17 @@ private:
         HackRFSourceModule* _this = (HackRFSourceModule*)ctx;
         if (_this->running) { return; }
         if (_this->selectedSerial == "") {
-            spdlog::error("Tried to start HackRF source with empty serial");
+            flog::error("Tried to start HackRF source with empty serial");
             return;
         }
 
 #ifndef __ANDROID__
         hackrf_error err = (hackrf_error)hackrf_open_by_serial(_this->selectedSerial.c_str(), &_this->openDev);
 #else
-        hackrf_error err = (hackrf_error)hackrf_open_by_fd(&_this->openDev, _this->devFd);
+        hackrf_error err = (hackrf_error)hackrf_open_by_fd(_this->devFd, &_this->openDev);
 #endif
         if (err != HACKRF_SUCCESS) {
-            spdlog::error("Could not open HackRF {0}: {1}", _this->selectedSerial, hackrf_error_name(err));
+            flog::error("Could not open HackRF {0}: {1}", _this->selectedSerial, hackrf_error_name(err));
             return;
         }
 
@@ -267,7 +266,7 @@ private:
         hackrf_start_rx(_this->openDev, callback, _this);
 
         _this->running = true;
-        spdlog::info("HackRFSourceModule '{0}': Start!", _this->name);
+        flog::info("HackRFSourceModule '{0}': Start!", _this->name);
     }
 
     static void stop(void* ctx) {
@@ -278,10 +277,10 @@ private:
         // TODO: Stream stop
         hackrf_error err = (hackrf_error)hackrf_close(_this->openDev);
         if (err != HACKRF_SUCCESS) {
-            spdlog::error("Could not close HackRF {0}: {1}", _this->selectedSerial, hackrf_error_name(err));
+            flog::error("Could not close HackRF {0}: {1}", _this->selectedSerial, hackrf_error_name(err));
         }
         _this->stream.clearWriteStop();
-        spdlog::info("HackRFSourceModule '{0}': Stop!", _this->name);
+        flog::info("HackRFSourceModule '{0}': Stop!", _this->name);
     }
 
     static void tune(double freq, void* ctx) {
@@ -290,7 +289,7 @@ private:
             hackrf_set_freq(_this->openDev, freq);
         }
         _this->freq = freq;
-        spdlog::info("HackRFSourceModule '{0}': Tune: {1}!", _this->name, freq);
+        flog::info("HackRFSourceModule '{0}': Tune: {1}!", _this->name, freq);
     }
 
     static void menuHandler(void* ctx) {
@@ -379,10 +378,8 @@ private:
 
     static int callback(hackrf_transfer* transfer) {
         HackRFSourceModule* _this = (HackRFSourceModule*)transfer->rx_ctx;
-        int count = transfer->valid_length / 2;
-        int8_t* buffer = (int8_t*)transfer->buffer;
-        volk_8i_s32f_convert_32f((float*)_this->stream.writeBuf, buffer, 128.0f, count * 2);
-        if (!_this->stream.swap(count)) { return -1; }
+        volk_8i_s32f_convert_32f((float*)_this->stream.writeBuf, (int8_t*)transfer->buffer, 128.0f, transfer->valid_length);
+        if (!_this->stream.swap(transfer->valid_length / 2)) { return -1; }
         return 0;
     }
 

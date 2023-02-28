@@ -30,13 +30,7 @@ endif (OPT_BACKEND_ANDROID)
 add_library(sdrpp_core SHARED ${SRC} ${BACKEND_SRC})
 
 # Set compiler options
-if (MSVC)
-    target_compile_options(sdrpp_core PRIVATE /O2 /Ob2 /std:c++17 /EHsc)
-elseif (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    target_compile_options(sdrpp_core PRIVATE -O3 -std=c++17)
-else ()
-    target_compile_options(sdrpp_core PRIVATE -O3 -std=c++17)
-endif ()
+target_compile_options(sdrpp_core PRIVATE ${SDRPP_COMPILER_FLAGS})
 
 # Set the install prefix
 target_compile_definitions(sdrpp_core PUBLIC INSTALL_PREFIX="${CMAKE_INSTALL_PREFIX}")
@@ -101,24 +95,22 @@ if (MSVC)
     target_link_libraries(sdrpp_core PUBLIC FFTW3::fftw3f)
 
     # WinSock2
-    target_link_libraries(sdrpp_core PUBLIC wsock32 ws2_32)
+    target_link_libraries(sdrpp_core PUBLIC wsock32 ws2_32 iphlpapi)
 
     # ZSTD
     find_package(zstd CONFIG REQUIRED)
     target_link_libraries(sdrpp_core PUBLIC zstd::libzstd_shared)
 elseif (ANDROID)
     target_include_directories(sdrpp_core PUBLIC
-        ../android/deps/volk/jni
-        ../android/deps/fftw3/jni
-        /mnt/android_sdr/zstd/lib
+        /sdr-kit/${ANDROID_ABI}/include
         ${ANDROID_NDK}/sources/android/native_app_glue
     )
 
     target_link_libraries(sdrpp_core PUBLIC
-        ${PROJECT_SOURCE_DIR}/../android/deps/volk/${ANDROID_ABI}/libcpu_features.a
-        ${PROJECT_SOURCE_DIR}/../android/deps/volk/${ANDROID_ABI}/libvolk.so
-        ${PROJECT_SOURCE_DIR}/../android/deps/fftw3/${ANDROID_ABI}/libfftw3f.a
-        /mnt/android_sdr/output/zstd/${ANDROID_ABI}/libzstd.so
+        /sdr-kit/${ANDROID_ABI}/lib/libcpu_features.a
+        /sdr-kit/${ANDROID_ABI}/lib/libvolk.so
+        /sdr-kit/${ANDROID_ABI}/lib/libfftw3f.so
+        /sdr-kit/${ANDROID_ABI}/lib/libzstd.so
         android
         EGL
         GLESv3

@@ -6,7 +6,7 @@
 #include <gui/gui.h>
 #include <gui/icons.h>
 #include <version.h>
-#include <spdlog/spdlog.h>
+#include <utils/flog.h>
 #include <gui/widgets/bandplan.h>
 #include <stb_image.h>
 #include <config.h>
@@ -42,21 +42,24 @@ namespace core {
         // Forward this to the server
         if (args["server"].b()) { server::setInputSampleRate(samplerate); return; }
         
-        sigpath::signalPath.sourceSampleRate = samplerate;
-        double effectiveSr = samplerate / ((double)(1 << sigpath::signalPath.decimation));
-        // NOTE: Zoom controls won't work
-        spdlog::info("New DSP samplerate: {0} (source samplerate is {1})", effectiveSr, samplerate);
+        // Update IQ frontend input samplerate and get effective samplerate
+        sigpath::iqFrontEnd.setSampleRate(samplerate);
+        double effectiveSr  = sigpath::iqFrontEnd.getEffectiveSamplerate();
+        
+        // Reset zoom
         gui::waterfall.setBandwidth(effectiveSr);
         gui::waterfall.setViewOffset(0);
         gui::waterfall.setViewBandwidth(effectiveSr);
-        sigpath::signalPath.setSampleRate(effectiveSr);
         gui::mainWindow.setViewBandwidthSlider(1.0);
+
+        // Debug logs
+        flog::info("New DSP samplerate: {0} (source samplerate is {1})", effectiveSr, samplerate);
     }
 };
 
 // main
 int sdrpp_main(int argc, char* argv[]) {
-    spdlog::info("SDR++ v" VERSION_STR);
+    flog::info("SDR++ v" VERSION_STR);
 
 #ifdef IS_MACOS_BUNDLE
     // If this is a MacOS .app, CD to the correct directory
@@ -77,22 +80,26 @@ int sdrpp_main(int argc, char* argv[]) {
     bool serverMode = (bool)core::args["server"];
 
 #ifdef _WIN32
+    // Free console if the user hasn't asked for a console and not in server mode
     if (!core::args["con"].b() && !serverMode) { FreeConsole(); }
+
+    // Set error mode to avoid abnoxious popups
+    SetErrorMode(SEM_NOOPENFILEERRORBOX | SEM_NOGPFAULTERRORBOX | SEM_FAILCRITICALERRORS);
 #endif
 
     // Check root directory
     std::string root = (std::string)core::args["root"];
     if (!std::filesystem::exists(root)) {
-        spdlog::warn("Root directory {0} does not exist, creating it", root);
+        flog::warn("Root directory {0} does not exist, creating it", root);
         if (!std::filesystem::create_directories(root)) {
-            spdlog::error("Could not create root directory {0}", root);
+            flog::error("Could not create root directory {0}", root);
             return -1;
         }
     }
 
     // Check that the path actually is a directory
     if (!std::filesystem::is_directory(root)) {
-        spdlog::error("{0} is not a directory", root);
+        flog::error("{0} is not a directory", root);
         return -1;
     }
 
@@ -114,7 +121,7 @@ int sdrpp_main(int argc, char* argv[]) {
     defConfig["fftHeight"] = 300;
     defConfig["fftRate"] = 20;
     defConfig["fftSize"] = 65536;
-    defConfig["fftWindow"] = 1;
+    defConfig["fftWindow"] = 2;
     defConfig["frequency"] = 100000000.0;
     defConfig["fullWaterfallUpdate"] = false;
     defConfig["max"] = 0.0;
@@ -142,9 +149,6 @@ int sdrpp_main(int argc, char* argv[]) {
     defConfig["menuElements"][4]["name"] = "VFO Color";
     defConfig["menuElements"][4]["open"] = true;
 
-    defConfig["menuElements"][5]["name"] = "Scripting";
-    defConfig["menuElements"][5]["open"] = false;
-
     defConfig["menuElements"][6]["name"] = "Band Plan";
     defConfig["menuElements"][6]["open"] = true;
 
@@ -159,14 +163,20 @@ int sdrpp_main(int argc, char* argv[]) {
     defConfig["moduleInstances"]["Airspy Source"]["enabled"] = true;
     defConfig["moduleInstances"]["AirspyHF+ Source"]["module"] = "airspyhf_source";
     defConfig["moduleInstances"]["AirspyHF+ Source"]["enabled"] = true;
+    defConfig["moduleInstances"]["Audio Source"]["module"] = "audio_source";
+    defConfig["moduleInstances"]["Audio Source"]["enabled"] = true;
     defConfig["moduleInstances"]["BladeRF Source"]["module"] = "bladerf_source";
     defConfig["moduleInstances"]["BladeRF Source"]["enabled"] = true;
     defConfig["moduleInstances"]["File Source"]["module"] = "file_source";
     defConfig["moduleInstances"]["File Source"]["enabled"] = true;
     defConfig["moduleInstances"]["HackRF Source"]["module"] = "hackrf_source";
     defConfig["moduleInstances"]["HackRF Source"]["enabled"] = true;
+    defConfig["moduleInstances"]["Hermes Source"]["module"] = "hermes_source";
+    defConfig["moduleInstances"]["Hermes Source"]["enabled"] = true;
     defConfig["moduleInstances"]["LimeSDR Source"]["module"] = "limesdr_source";
     defConfig["moduleInstances"]["LimeSDR Source"]["enabled"] = true;
+    defConfig["moduleInstances"]["PlutoSDR Source"]["module"] = "plutosdr_source";
+    defConfig["moduleInstances"]["PlutoSDR Source"]["enabled"] = true;
     defConfig["moduleInstances"]["RFspace Source"]["module"] = "rfspace_source";
     defConfig["moduleInstances"]["RFspace Source"]["enabled"] = true;
     defConfig["moduleInstances"]["RTL-SDR Source"]["module"] = "rtl_sdr_source";
@@ -181,8 +191,6 @@ int sdrpp_main(int argc, char* argv[]) {
     defConfig["moduleInstances"]["SoapySDR Source"]["enabled"] = true;
     defConfig["moduleInstances"]["SpyServer Source"]["module"] = "spyserver_source";
     defConfig["moduleInstances"]["SpyServer Source"]["enabled"] = true;
-    defConfig["moduleInstances"]["PlutoSDR Source"]["module"] = "plutosdr_source";
-    defConfig["moduleInstances"]["PlutoSDR Source"]["enabled"] = true;
 
     defConfig["moduleInstances"]["Audio Sink"] = "audio_sink";
     defConfig["moduleInstances"]["Network Sink"] = "network_sink";
@@ -192,6 +200,10 @@ int sdrpp_main(int argc, char* argv[]) {
     defConfig["moduleInstances"]["Frequency Manager"] = "frequency_manager";
     defConfig["moduleInstances"]["Recorder"] = "recorder";
     defConfig["moduleInstances"]["Rigctl Server"] = "rigctl_server";
+    // defConfig["moduleInstances"]["Rigctl Client"] = "rigctl_client";
+    // TODO: Enable rigctl_client when ready
+    // defConfig["moduleInstances"]["Scanner"] = "scanner";
+    // TODO: Enable scanner when ready
 
 
     // Themes
@@ -211,6 +223,7 @@ int sdrpp_main(int argc, char* argv[]) {
     defConfig["source"] = "";
     defConfig["decimationPower"] = 0;
     defConfig["iqCorrection"] = false;
+    defConfig["invertIQ"] = false;
 
     defConfig["streams"]["Radio"]["muted"] = false;
     defConfig["streams"]["Radio"]["sink"] = "Audio";
@@ -244,7 +257,7 @@ int sdrpp_main(int argc, char* argv[]) {
 #endif
 
     // Load config
-    spdlog::info("Loading config");
+    flog::info("Loading config");
     core::configManager.setPath(root + "/config.json");
     core::configManager.load(defConfig);
     core::configManager.enableAutoSave();
@@ -258,11 +271,12 @@ int sdrpp_main(int argc, char* argv[]) {
     core::configManager.conf["modules"][modCount++] = "airspy_source.so";
     core::configManager.conf["modules"][modCount++] = "airspyhf_source.so";
     core::configManager.conf["modules"][modCount++] = "hackrf_source.so";
+    core::configManager.conf["modules"][modCount++] = "hermes_source.so";
     core::configManager.conf["modules"][modCount++] = "plutosdr_source.so";
-    core::configManager.conf["modules"][modCount++] = "sdrpp_server_source.so";
     core::configManager.conf["modules"][modCount++] = "rfspace_source.so";
     core::configManager.conf["modules"][modCount++] = "rtl_sdr_source.so";
     core::configManager.conf["modules"][modCount++] = "rtl_tcp_source.so";
+    core::configManager.conf["modules"][modCount++] = "sdrpp_server_source.so";
     core::configManager.conf["modules"][modCount++] = "spyserver_source.so";
 
     core::configManager.conf["modules"][modCount++] = "network_sink.so";
@@ -275,12 +289,13 @@ int sdrpp_main(int argc, char* argv[]) {
     core::configManager.conf["modules"][modCount++] = "frequency_manager.so";
     core::configManager.conf["modules"][modCount++] = "recorder.so";
     core::configManager.conf["modules"][modCount++] = "rigctl_server.so";
+    core::configManager.conf["modules"][modCount++] = "scanner.so";
 #endif
 
     // Fix missing elements in config
     for (auto const& item : defConfig.items()) {
         if (!core::configManager.conf.contains(item.key())) {
-            spdlog::info("Missing key in config {0}, repairing", item.key());
+            flog::info("Missing key in config {0}, repairing", item.key());
             core::configManager.conf[item.key()] = defConfig[item.key()];
         }
     }
@@ -289,7 +304,7 @@ int sdrpp_main(int argc, char* argv[]) {
     auto items = core::configManager.conf.items();
     for (auto const& item : items) {
         if (!defConfig.contains(item.key())) {
-            spdlog::info("Unused key in config {0}, repairing", item.key());
+            flog::info("Unused key in config {0}, repairing", item.key());
             core::configManager.conf.erase(item.key());
         }
     }
@@ -319,7 +334,7 @@ int sdrpp_main(int argc, char* argv[]) {
     // Assert that the resource directory is absolute and check existence
     resDir = std::filesystem::absolute(resDir).string();
     if (!std::filesystem::is_directory(resDir)) {
-        spdlog::error("Resource directory doesn't exist! Please make sure that you've configured it correctly in config.json (check readme for details)");
+        flog::error("Resource directory doesn't exist! Please make sure that you've configured it correctly in config.json (check readme for details)");
         return 1;
     }
 
@@ -327,7 +342,7 @@ int sdrpp_main(int argc, char* argv[]) {
     int biRes = backend::init(resDir);
     if (biRes < 0) { return biRes; }
 
-    // Intialize SmGui in normal mode
+    // Initialize SmGui in normal mode
     SmGui::init(false);
 
     if (!style::loadFonts(resDir)) { return -1; }
@@ -335,20 +350,20 @@ int sdrpp_main(int argc, char* argv[]) {
     LoadingScreen::init();
 
     LoadingScreen::show("Loading icons");
-    spdlog::info("Loading icons");
+    flog::info("Loading icons");
     if (!icons::load(resDir)) { return -1; }
 
     LoadingScreen::show("Loading band plans");
-    spdlog::info("Loading band plans");
+    flog::info("Loading band plans");
     bandplan::loadFromDir(resDir + "/bandplans");
 
     LoadingScreen::show("Loading band plan colors");
-    spdlog::info("Loading band plans color table");
+    flog::info("Loading band plans color table");
     bandplan::loadColorTable(bandColors);
 
     gui::mainWindow.init();
 
-    spdlog::info("Ready.");
+    flog::info("Ready.");
 
     // Run render loop (TODO: CHECK RETURN VALUE)
     backend::renderLoop();
@@ -363,12 +378,12 @@ int sdrpp_main(int argc, char* argv[]) {
     // Terminate backend (TODO: CHECK RETURN VALUE)
     backend::end();
 
-    sigpath::signalPath.stop();
+    sigpath::iqFrontEnd.stop();
 
     core::configManager.disableAutoSave();
     core::configManager.save();
 #endif
 
-    spdlog::info("Exiting successfully");
+    flog::info("Exiting successfully");
     return 0;
 }

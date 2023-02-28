@@ -1,6 +1,6 @@
 #include <server.h>
 #include <signal_path/source.h>
-#include <spdlog/spdlog.h>
+#include <utils/flog.h>
 #include <signal_path/signal_path.h>
 #include <core.h>
 
@@ -9,7 +9,7 @@ SourceManager::SourceManager() {
 
 void SourceManager::registerSource(std::string name, SourceHandler* handler) {
     if (sources.find(name) != sources.end()) {
-        spdlog::error("Tried to register new source with existing name: {0}", name);
+        flog::error("Tried to register new source with existing name: {0}", name);
         return;
     }
     sources[name] = handler;
@@ -18,7 +18,7 @@ void SourceManager::registerSource(std::string name, SourceHandler* handler) {
 
 void SourceManager::unregisterSource(std::string name) {
     if (sources.find(name) == sources.end()) {
-        spdlog::error("Tried to unregister non existent source: {0}", name);
+        flog::error("Tried to unregister non existent source: {0}", name);
         return;
     }
     onSourceUnregister.emit(name);
@@ -26,7 +26,7 @@ void SourceManager::unregisterSource(std::string name) {
         if (selectedHandler != NULL) {
             sources[selectedName]->deselectHandler(sources[selectedName]->ctx);
         }
-        sigpath::signalPath.setInput(&nullSource);
+        sigpath::iqFrontEnd.setInput(&nullSource);
         selectedHandler = NULL;
     }
     sources.erase(name);
@@ -41,7 +41,7 @@ std::vector<std::string> SourceManager::getSourceNames() {
 
 void SourceManager::selectSource(std::string name) {
     if (sources.find(name) == sources.end()) {
-        spdlog::error("Tried to select non existent source: {0}", name);
+        flog::error("Tried to select non existent source: {0}", name);
         return;
     }
     if (selectedHandler != NULL) {
@@ -54,7 +54,7 @@ void SourceManager::selectSource(std::string name) {
         server::setInput(selectedHandler->stream);
     }
     else {
-        sigpath::signalPath.setInput(selectedHandler->stream);
+        sigpath::iqFrontEnd.setInput(selectedHandler->stream);
     }
     // Set server input here
 }
@@ -84,11 +84,23 @@ void SourceManager::tune(double freq) {
     if (selectedHandler == NULL) {
         return;
     }
-    selectedHandler->tuneHandler(freq + tuneOffset, selectedHandler->ctx);
+    // TODO: No need to always retune the hardware in panadpter mode
+    selectedHandler->tuneHandler(((tuneMode == TuningMode::NORMAL) ? freq : ifFreq) + tuneOffset, selectedHandler->ctx);
+    onRetune.emit(freq);
     currentFreq = freq;
 }
 
 void SourceManager::setTuningOffset(double offset) {
     tuneOffset = offset;
+    tune(currentFreq);
+}
+
+void SourceManager::setTuningMode(TuningMode mode) {
+    tuneMode = mode;
+    tune(currentFreq);
+}
+
+void SourceManager::setPanadpterIF(double freq) {
+    ifFreq = freq;
     tune(currentFreq);
 }

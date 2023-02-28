@@ -6,14 +6,10 @@
 #include <signal_path/signal_path.h>
 #include <module.h>
 #include <filesystem>
-#include <dsp/pll.h>
 #include <dsp/stream.h>
-#include <dsp/demodulator.h>
-#include <dsp/window.h>
-#include <dsp/resampling.h>
-#include <dsp/processing.h>
-#include <dsp/routing.h>
-#include <dsp/sink.h>
+#include <dsp/buffer/reshaper.h>
+#include <dsp/multirate/rational_resampler.h>
+#include <dsp/sink/handler_sink.h>
 #include <gui/widgets/folder_select.h>
 #include <gui/widgets/symbol_diagram.h>
 #include <m17dsp.h>
@@ -36,7 +32,7 @@ ConfigManager config;
 
 class M17DecoderModule : public ModuleManager::Instance {
 public:
-    M17DecoderModule(std::string name) : diag(0.8, 480) {
+    M17DecoderModule(std::string name) : diag(0.6, 480) {
         this->name = name;
         lsf.valid = false;
 
@@ -47,10 +43,10 @@ public:
         }
         showLines = config.conf[name]["showLines"];
         if (showLines) {
-            diag.lines.push_back(-0.75f);
-            diag.lines.push_back(-0.25f);
-            diag.lines.push_back(0.25f);
-            diag.lines.push_back(0.75f);
+            diag.lines.push_back(-1.0);
+            diag.lines.push_back(-1.0/3.0);
+            diag.lines.push_back(1.0/3.0);
+            diag.lines.push_back(1.0);
         }
         config.release(true);
 
@@ -61,12 +57,7 @@ public:
 
         // Initialize DSP here
         decoder.init(vfo->output, INPUT_SAMPLE_RATE, lsfHandler, this);
-
-        resampWin.init(4000, 4000, audioSampRate);
-        resamp.init(decoder.out, &resampWin, 8000, audioSampRate);
-        resampWin.setSampleRate(8000 * resamp.getInterpolation());
-        resamp.updateWindow(&resampWin);
-
+        resamp.init(decoder.out, 8000, audioSampRate);
         reshape.init(decoder.diagOut, 480, 0);
         diagHandler.init(&reshape.out, _diagHandler, this);
 
@@ -236,6 +227,15 @@ private:
             config.release(true);
         }
 
+        ImGui::TextUnformatted("Status:");
+        ImGui::SameLine();
+        if (_this->decoder.isReceiving()) {
+            ImGui::TextColored(ImVec4(0.0, 1.0, 0.0, 1.0), "Receiving");
+        }
+        else {
+            ImGui::TextUnformatted("Idle");
+        }
+
         if (!_this->enabled) { style::endDisabled(); }
     }
 
@@ -250,11 +250,8 @@ private:
         M17DecoderModule* _this = (M17DecoderModule*)ctx;
         // TODO: If too slow, change all demods here and not when setting
         _this->audioSampRate = sampleRate;
-        _this->resampWin.setCutoff(std::min<float>(sampleRate / 2, 4000));
         _this->resamp.tempStop();
-        _this->resamp.setOutSampleRate(sampleRate);
-        _this->resampWin.setSampleRate(8000 * _this->resamp.getInterpolation());
-        _this->resamp.updateWindow(&_this->resampWin);
+        _this->resamp.setOutSamplerate(sampleRate);
         _this->resamp.tempStart();
     }
 
@@ -273,11 +270,9 @@ private:
 
     dsp::M17Decoder decoder;
 
-    dsp::Reshaper<float> reshape;
-    dsp::HandlerSink<float> diagHandler;
-
-    dsp::filter_window::BlackmanWindow resampWin;
-    dsp::PolyphaseResampler<dsp::stereo_t> resamp;
+    dsp::buffer::Reshaper<float> reshape;
+    dsp::sink::Handler<float> diagHandler;
+    dsp::multirate::RationalResampler<dsp::stereo_t> resamp;
 
     ImGui::SymbolDiagram diag;
 

@@ -13,6 +13,7 @@ namespace sourcemenu {
     double effectiveOffset = 0.0;
     int decimationPower = 0;
     bool iqCorrection = false;
+    bool invertIQ = false;
 
     EventHandler<std::string> sourceRegisteredHandler;
     EventHandler<std::string> sourceUnregisterHandler;
@@ -27,6 +28,7 @@ namespace sourcemenu {
         OFFSET_MODE_CUSTOM,
         OFFSET_MODE_SPYVERTER,
         OFFSET_MODE_HAM_IT_UP,
+        OFFSET_MODE_MMDS_SB_1998,
         OFFSET_MODE_DK5AV_XB,
         OFFSET_MODE_KU_LNB_9750,
         OFFSET_MODE_KU_LNB_10700,
@@ -37,6 +39,7 @@ namespace sourcemenu {
                                  "Custom\0"
                                  "SpyVerter\0"
                                  "Ham-It-Up\0"
+                                 "MMDS S-band (1998MHz)\0"
                                  "DK5AV X-Band\0"
                                  "Ku LNB (9750MHz)\0"
                                  "Ku LNB (10700MHz)\0";
@@ -57,6 +60,9 @@ namespace sourcemenu {
         else if (offsetMode == OFFSET_MODE_HAM_IT_UP) {
             effectiveOffset = 125000000;
         } // 125MHz Up-conversion
+        else if (offsetMode == OFFSET_MODE_MMDS_SB_1998) {
+            effectiveOffset = -1998000000;
+        } // 1.998GHz Down-conversion
         else if (offsetMode == OFFSET_MODE_DK5AV_XB) {
             effectiveOffset = -6800000000;
         } // 6.8GHz Down-conversion
@@ -138,12 +144,14 @@ namespace sourcemenu {
         offsetMode = core::configManager.conf["offsetMode"];
         decimationPower = core::configManager.conf["decimationPower"];
         iqCorrection = core::configManager.conf["iqCorrection"];
-        sigpath::signalPath.setIQCorrection(iqCorrection);
+        invertIQ = core::configManager.conf["invertIQ"];
+        sigpath::iqFrontEnd.setDCBlocking(iqCorrection);
+        sigpath::iqFrontEnd.setInvertIQ(invertIQ);
         updateOffset();
 
         refreshSources();
         selectSource(selected);
-        sigpath::signalPath.setDecimation(decimationPower);
+        sigpath::iqFrontEnd.setDecimation(1 << decimationPower);
 
         sourceRegisteredHandler.handler = onSourceRegistered;
         sourceUnregisterHandler.handler = onSourceUnregister;
@@ -174,9 +182,16 @@ namespace sourcemenu {
         sigpath::sourceManager.showSelectedMenu();
 
         if (ImGui::Checkbox("IQ Correction##_sdrpp_iq_corr", &iqCorrection)) {
-            sigpath::signalPath.setIQCorrection(iqCorrection);
+            sigpath::iqFrontEnd.setDCBlocking(iqCorrection);
             core::configManager.acquire();
             core::configManager.conf["iqCorrection"] = iqCorrection;
+            core::configManager.release(true);
+        }
+
+        if (ImGui::Checkbox("Invert IQ##_sdrpp_inv_iq", &invertIQ)) {
+            sigpath::iqFrontEnd.setInvertIQ(invertIQ);
+            core::configManager.acquire();
+            core::configManager.conf["invertIQ"] = invertIQ;
             core::configManager.release(true);
         }
 
@@ -209,7 +224,7 @@ namespace sourcemenu {
         ImGui::LeftLabel("Decimation");
         ImGui::SetNextItemWidth(itemWidth - ImGui::GetCursorPosX());
         if (ImGui::Combo("##source_decim", &decimationPower, decimationStages)) {
-            sigpath::signalPath.setDecimation(decimationPower);
+            sigpath::iqFrontEnd.setDecimation(1 << decimationPower);
             core::configManager.acquire();
             core::configManager.conf["decimationPower"] = decimationPower;
             core::configManager.release(true);

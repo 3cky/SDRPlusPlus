@@ -3,19 +3,7 @@ project(hackrf_source)
 
 file(GLOB SRC "src/*.cpp")
 
-add_library(hackrf_source SHARED ${SRC})
-target_link_libraries(hackrf_source PRIVATE sdrpp_core)
-set_target_properties(hackrf_source PROPERTIES PREFIX "")
-
-target_include_directories(hackrf_source PRIVATE "src/")
-
-if (MSVC)
-    target_compile_options(hackrf_source PRIVATE /O2 /Ob2 /std:c++17 /EHsc)
-elseif (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    target_compile_options(hackrf_source PRIVATE -O3 -std=c++17 -Wno-unused-command-line-argument -undefined dynamic_lookup)
-else ()
-    target_compile_options(hackrf_source PRIVATE -O3 -std=c++17)
-endif ()
+include(${SDRPP_MODULE_CMAKE})
 
 if (MSVC)
     # Lib path
@@ -24,13 +12,12 @@ if (MSVC)
     target_link_libraries(hackrf_source PRIVATE hackrf)
 elseif (ANDROID)
     target_include_directories(hackrf_source PUBLIC
-        /mnt/android_sdr/libusb/libusb
-        /mnt/android_sdr/hackrf/host/libhackrf/src
+        /sdr-kit/${ANDROID_ABI}/include/libhackrf
     )
 
     target_link_libraries(hackrf_source PUBLIC
-        /mnt/android_sdr/output/libusb/${ANDROID_ABI}/libusb1.0.so
-        /mnt/android_sdr/output/libhackrf/${ANDROID_ABI}/libhackrf.so
+        /sdr-kit/${ANDROID_ABI}/lib/libusb1.0.so
+        /sdr-kit/${ANDROID_ABI}/lib/libhackrf.so
     )
 else (MSVC)
     find_package(PkgConfig)
@@ -41,6 +28,3 @@ else (MSVC)
     target_link_directories(hackrf_source PRIVATE ${LIBHACKRF_LIBRARY_DIRS})
     target_link_libraries(hackrf_source PRIVATE ${LIBHACKRF_LIBRARIES})
 endif ()
-
-# Install directives
-install(TARGETS hackrf_source DESTINATION lib/sdrpp/plugins)

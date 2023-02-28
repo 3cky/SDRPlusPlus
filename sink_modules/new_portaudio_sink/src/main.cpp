@@ -4,9 +4,9 @@
 #include <signal_path/signal_path.h>
 #include <signal_path/sink.h>
 #include <portaudio.h>
-#include <dsp/audio.h>
-#include <dsp/processing.h>
-#include <spdlog/spdlog.h>
+#include <dsp/buffer/packer.h>
+#include <dsp/convert/stereo_to_mono.h>
+#include <utils/flog.h>
 #include <config.h>
 #include <algorithm>
 #include <core.h>
@@ -104,11 +104,11 @@ public:
 
         // In case of error, abort
         if (err) {
-            spdlog::error("PortAudio error {0}: {1}", err, Pa_GetErrorText(err));
+            flog::error("PortAudio error {0}: {1}", err, Pa_GetErrorText(err));
             return;
         }
 
-        spdlog::info("Starting PortAudio stream at {0} S/s", sampleRate);
+        flog::info("Starting PortAudio stream at {0} S/s", sampleRate);
 
         // Start stream
         Pa_StartStream(devStream);
@@ -374,8 +374,8 @@ private:
     std::string selectedDevName;
 
     SinkManager::Stream* _stream;
-    dsp::Packer<dsp::stereo_t> packer;
-    dsp::StereoToMono s2m;
+    dsp::buffer::Packer<dsp::stereo_t> packer;
+    dsp::convert::StereoToMono s2m;
 
     PaStream* devStream;
 

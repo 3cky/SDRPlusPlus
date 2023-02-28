@@ -18,6 +18,7 @@ void CommandArgsParser::defineAll() {
         define('p', "port", "Server mode port", 5259);
         define('r', "root", "Root directory, where all config files are stored", std::filesystem::absolute(root).string());
         define('s', "server", "Run in server mode");
+        define('\0', "autostart", "Automatically start the SDR after loading");
 }
 
 int CommandArgsParser::parse(int argc, char* argv[]) {
@@ -78,7 +79,7 @@ int CommandArgsParser::parse(int argc, char* argv[]) {
                 carg.bval = true;
             }
             else {
-                printf("Invald argument, expected bool (true, false, on, off, 1, 0)\n");
+                printf("Invalid argument, expected bool (true, false, on, off, 1, 0)\n");
                 showHelp();
                 return -1;
             }
@@ -88,7 +89,7 @@ int CommandArgsParser::parse(int argc, char* argv[]) {
                 carg.ival = std::stoi(arg);
             }
             catch (std::exception e) {
-                printf("Invald argument, failed to parse integer\n");
+                printf("Invalid argument, failed to parse integer\n");
                 showHelp();
                 return -1;
             }
@@ -98,7 +99,7 @@ int CommandArgsParser::parse(int argc, char* argv[]) {
                 carg.fval = std::stod(arg);
             }
             catch (std::exception e) {
-                printf("Invald argument, failed to parse float\n");
+                printf("Invalid argument, failed to parse float\n");
                 showHelp();
                 return -1;
             }

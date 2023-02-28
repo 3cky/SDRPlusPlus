@@ -22,6 +22,7 @@ namespace sdrpp_credits {
         "Syne Ardwin (WI9SYN)",
         "Szymon Zakrent",
         "Tobias Mädel",
+        "Youssef Touil",
         "Zimm"
     };
 
@@ -30,14 +31,15 @@ namespace sdrpp_credits {
         "fftw3 (fftw.org)",
         "glfw (Camilla Löwy)",
         "json (nlohmann)",
-        "spdlog (gabime)",
         "Portable File Dialogs"
     };
 
     const char* hardwareDonators[] = {
+        "Aaronia AG",
         "Airspy",
         "Analog Devices",
         "CaribouLabs",
+        "Ettus Research",
         "Howard Su",
         "MyriadRF",
         "Nuand",
@@ -66,6 +68,7 @@ namespace sdrpp_credits {
         ".lozenge. (Hank Hill)",
         "ON4MU",
         "Passion-Radio.com",
+        "Paul Maine",
         "Scanner School",
         "SignalsEverywhere",
         "Syne Ardwin (WI9SYN)",
